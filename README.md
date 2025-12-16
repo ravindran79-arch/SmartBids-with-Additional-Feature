@@ -1,2 +1,1 @@
-# SmartBids-with-Additional-Feature
-SmartBids with RFQ Extraction Button
+# smartbid-compliance-ChatGPT-Version
