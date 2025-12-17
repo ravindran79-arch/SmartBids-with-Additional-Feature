@@ -4,7 +4,7 @@ import {
     Save, Clock, Zap, ArrowLeft, Users, Briefcase, Layers, UserPlus, LogIn, Tag,
     Shield, User, HardDrive, Phone, Mail, Building, Trash2, Eye, DollarSign, Activity, 
     Printer, Download, MapPin, Calendar, ThumbsUp, ThumbsDown, Gavel, Paperclip, Copy, Award, Lock, CreditCard, Info,
-    FileSearch, Table // Added Icons
+    FileSearch, Table 
 } from 'lucide-react'; 
 
 // --- FIREBASE IMPORTS ---
@@ -36,7 +36,7 @@ const db = getFirestore(app);
 const API_URL = '/api/analyze'; 
 
 const CATEGORY_ENUM = ["LEGAL", "FINANCIAL", "TECHNICAL", "TIMELINE", "REPORTING", "ADMINISTRATIVE", "OTHER"];
-const EXTRACTION_CATEGORY_ENUM = ["SCOPE", "TECHNICAL", "COMMERCIAL", "ADMIN", "HSE", "LOGISTICS", "OTHER"]; // New for Extraction
+const EXTRACTION_CATEGORY_ENUM = ["SCOPE", "TECHNICAL", "COMMERCIAL", "ADMIN", "HSE", "LOGISTICS", "OTHER"]; 
 const MAX_FREE_AUDITS = 3; 
 
 const PAGE = {
@@ -53,7 +53,6 @@ const COMPREHENSIVE_REPORT_SCHEMA = {
     type: "OBJECT",
     description: "The complete compliance audit report with market intelligence and bid coaching data.",
     properties: {
-        // ... (Existing properties kept exactly as is for backward compatibility)
         "projectTitle": { "type": "STRING", "description": "Official Project Title from RFQ." },
         "rfqScopeSummary": { "type": "STRING", "description": "High-level scope summary from RFQ." },
         "grandTotalValue": { "type": "STRING", "description": "Total Bid Price/Cost." },
@@ -96,10 +95,10 @@ const COMPREHENSIVE_REPORT_SCHEMA = {
             }
         }
     },
-    "required": ["projectTitle", "rfqScopeSummary", "findings", "executiveSummary"] // Simplified required list for brevity in this snippet
+    "required": ["projectTitle", "rfqScopeSummary", "findings", "executiveSummary"] 
 };
 
-// 2. NEW SCHEMA FOR RFQ EXTRACTION (The "Shredder")
+// 2. NEW SCHEMA FOR RFQ EXTRACTION
 const RFQ_EXTRACTION_SCHEMA = {
     type: "OBJECT",
     description: "Executive Brief and Detailed Compliance Matrix extracted from RFQ.",
@@ -241,8 +240,6 @@ const FormInput = ({ label, name, value, onChange, type, placeholder, id }) => (
     </div>
 );
 
-// ... (PaywallModal, DetailItem, UserCard, StatCard, MetricPill kept as is) ...
-
 const PaywallModal = ({ show, onClose, userId }) => {
     if (!show) return null;
     const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_cNi00i4JHdOmdTT8VJafS00"; 
@@ -283,7 +280,6 @@ const FileUploader = ({ title, file, setFile, color, requiredText }) => (
 
 // 1. Existing Report Component (For Bids)
 const ComplianceReport = ({ report }) => {
-    // [Legacy rendering code for Comparison Report - Kept Exact]
     const findings = report.findings || []; 
     const overallPercentage = getCompliancePercentage(report);
     const counts = findings.reduce((acc, item) => { const flag = item.flag || 'NON-COMPLIANT'; acc[flag] = (acc[flag] || 0) + 1; return acc; }, { 'COMPLIANT': 0, 'PARTIAL': 0, 'NON-COMPLIANT': 0 });
@@ -295,7 +291,26 @@ const ComplianceReport = ({ report }) => {
                 <h2 className="text-3xl font-extrabold text-white flex items-center"><List className="w-6 h-6 mr-3 text-amber-400"/> Comprehensive Compliance Report</h2>
                 <button onClick={() => window.print()} className="text-sm text-slate-400 hover:text-white bg-slate-700 px-3 py-2 rounded-lg flex items-center no-print"><Printer className="w-4 h-4 mr-2"/> Print / PDF</button>
             </div>
-            {/* ... (Rest of existing ComplianceReport UI) ... */}
+            {/* ... Header Details ... */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                    <h3 className="text-xl font-bold text-white mb-2">{report.projectTitle || "Project Title N/A"}</h3>
+                    <p className="text-slate-400 text-sm mb-4">{report.rfqScopeSummary || "Scope N/A"}</p>
+                    <div className="flex flex-wrap gap-2">
+                        {report.industryTag && <span className="px-2 py-1 bg-slate-700 text-slate-300 text-xs rounded border border-slate-600">{report.industryTag}</span>}
+                        {report.buyingPersona && <span className="px-2 py-1 bg-purple-900/40 text-purple-300 text-xs rounded border border-purple-500/50">{report.buyingPersona}</span>}
+                        {report.primaryRisk && <span className="px-2 py-1 bg-red-900/40 text-red-300 text-xs rounded border border-red-500/50">Risk: {report.primaryRisk}</span>}
+                    </div>
+                </div>
+                 <div className="space-y-2 text-sm text-slate-300">
+                    <p><span className="font-semibold text-slate-500">Value:</span> {report.grandTotalValue || "N/A"}</p>
+                    <p><span className="font-semibold text-slate-500">Location:</span> {report.projectLocation || "N/A"}</p>
+                    <p><span className="font-semibold text-slate-500">Duration:</span> {report.contractDuration || "N/A"}</p>
+                    <p><span className="font-semibold text-slate-500">Complexity:</span> {report.complexityScore || "N/A"}/10</p>
+                    <p><span className="font-semibold text-slate-500">Lead Temp:</span> {report.leadTemperature || "N/A"}</p>
+                </div>
+            </div>
+
             {report.generatedExecutiveSummary && (
                 <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/40 to-slate-800 rounded-xl border border-blue-500/30">
                     <div className="flex justify-between items-start mb-3">
@@ -311,7 +326,21 @@ const ComplianceReport = ({ report }) => {
                     <div className="text-5xl font-extrabold text-amber-400">{overallPercentage}%</div>
                     <div className="w-full h-3 bg-slate-900 rounded-full flex overflow-hidden mt-4"><div style={{ width: getWidth('COMPLIANT') }} className="bg-green-500"></div><div style={{ width: getWidth('PARTIAL') }} className="bg-amber-500"></div><div style={{ width: getWidth('NON-COMPLIANT') }} className="bg-red-500"></div></div>
                 </div>
-                {/* ... (Persuasion Score, Verdict, Findings - Standard stuff) ... */}
+                
+                 {/* Persuasion & Tone */}
+                 <div className="p-5 bg-slate-700/50 rounded-xl border border-blue-500/30">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-sm font-semibold text-white">Persuasion Score</span>
+                        <span className="text-sm font-bold text-blue-400">{report.persuasionScore || 0}/100</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-3">Tone: <span className="text-white">{report.toneAnalysis || "N/A"}</span></p>
+                    {report.weakWords && report.weakWords.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-red-400 mb-1">Weak Words Found:</p>
+                            <div className="flex flex-wrap gap-1">{report.weakWords.map((w,i)=><span key={i} className="px-1.5 py-0.5 bg-red-900/30 text-red-300 text-[10px] rounded">{w}</span>)}</div>
+                        </div>
+                    )}
+                 </div>
             </div>
              <h3 className="text-2xl font-bold text-white mb-6 border-b border-slate-700 pb-3">Detailed Findings</h3>
             <div className="space-y-8">
@@ -333,12 +362,12 @@ const ComplianceReport = ({ report }) => {
     );
 };
 
-// 2. NEW COMPONENT: Extraction Report (For RFQ Only) const ExtractionReport = ({ report }) => {
+// 2. NEW COMPONENT: Extraction Report (For RFQ Only)
+const ExtractionReport = ({ report }) => {
     const essence = report.projectEssence || {};
     const matrix = report.complianceMatrix || [];
 
     const exportToExcel = () => {
-        // Simple CSV Export logic
         const headers = ["Ref", "Category", "Strictness", "Requirement Verbatim", "Action Item"];
         const rows = matrix.map(m => [
             `"${m.sectionRef || ''}"`, 
@@ -424,13 +453,10 @@ const ComplianceReport = ({ report }) => {
     );
 };
 
-// ... (ComplianceRanking, ReportHistory, AuthPage, AdminDashboard components kept as is) ...
-
 const ComplianceRanking = ({ reportsHistory, loadReportFromHistory, deleteReport, currentUser }) => { 
     if (reportsHistory.length === 0) return null;
     const groupedReports = reportsHistory.reduce((acc, report) => {
         const rfqName = report.rfqName;
-        // Handle undefined finding for extraction reports
         const percentage = report.reportType === 'EXTRACTION' ? 100 : getCompliancePercentage(report); 
         if (!acc[rfqName]) acc[rfqName] = { allReports: [], count: 0 };
         acc[rfqName].allReports.push({ ...report, percentage });
@@ -478,13 +504,11 @@ const ReportHistory = ({ reportsHistory, loadReportFromHistory, isAuthReady, use
                 </div>
             </div>
             <ComplianceRanking reportsHistory={reportsHistory} loadReportFromHistory={loadReportFromHistory} deleteReport={deleteReport} currentUser={currentUser} />
-            {/* ... (Existing History List logic kept same) ... */}
         </div>
     );
 };
 
 const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) => {
-   // ... (Auth Logic kept exactly same)
     const [regForm, setRegForm] = useState({ name: '', designation: '', company: '', email: '', phone: '', password: '' });
     const [loginForm, setLoginForm] = useState({ email: '', password: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -552,12 +576,11 @@ const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) =
 };
 
 const AdminDashboard = ({ setCurrentPage, currentUser, reportsHistory, loadReportFromHistory, handleLogout }) => {
-    // ... (Admin dashboard logic kept exact)
   const [userList, setUserList] = useState([]);
   useEffect(() => { getDocs(collection(getFirestore(), 'users')).then(snap => setUserList(snap.docs.map(d => ({ id: d.id, ...d.data() })))); }, []);
   const exportToCSV = (data, filename) => { const csvContent = "data:text/csv;charset=utf-8," + Object.keys(data[0]).join(",") + "\n" + data.map(e => Object.values(e).map(v => `"${v}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = filename; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
   const handleVendorExport = () => { const cleanVendorData = userList.map(u => ({ "Full Name": u.name, "Designation": u.designation, "Company": u.company, "Email": u.email, "Contact Number": u.phone, "Role": u.role })); exportToCSV(cleanVendorData, 'vendor_registry.csv'); };
-  const handleMarketExport = () => { const cleanMarketData = reportsHistory.map(r => ({ ID: r.id, Project: r.projectTitle || r.rfqName, Vendor: userList.find(u => u.id === r.ownerId)?.name, Industry: r.industryTag, Value: r.grandTotalValue, Score: getCompliancePercentage(r) + '%' })); exportToCSV(cleanMarketData, 'market_data.csv'); };
+  const handleMarketExport = () => { const cleanMarketData = reportsHistory.map(r => ({ ID: r.id, Project: r.projectTitle || r.rfqName, Vendor: userList.find(u => u.id === r.ownerId)?.name, Industry: r.industryTag, Value: r.grandTotalValue, Score: r.reportType === 'EXTRACTION' ? 'EXT' : getCompliancePercentage(r) + '%' })); exportToCSV(cleanMarketData, 'market_data.csv'); };
   return (
     <div id="admin-print-area" className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 space-y-8">
       <div className="flex justify-between items-center border-b border-slate-700 pb-4"><h2 className="text-3xl font-bold text-white flex items-center"><Shield className="w-8 h-8 mr-3 text-red-400" /> Admin Market Intel</h2><div className="flex space-x-3 no-print"><button onClick={() => window.print()} className="text-sm text-slate-400 hover:text-white bg-slate-700 px-3 py-2 rounded-lg"><Printer className="w-4 h-4 mr-2" /> Print</button><button onClick={handleLogout} className="text-sm text-slate-400 hover:text-amber-500 flex items-center"><ArrowLeft className="w-4 h-4 mr-1" /> Logout</button></div></div>
@@ -636,7 +659,6 @@ const AuditPage = ({ title, handleAnalyze, handleExtract, usageLimits, setCurren
 
 // --- APP COMPONENT ---
 const App = () => {
-    // ... (Existing State - No Changes)
     const [currentPage, setCurrentPage] = useState(PAGE.HOME);
     const [errorMessage, setErrorMessage] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
@@ -651,7 +673,6 @@ const App = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // ... (handleLogout, Effects 1, 2, 3, 4, incrementUsage - No Changes) ...
     const handleLogout = async () => { await signOut(auth); setUserId(null); setCurrentUser(null); setReportsHistory([]); setReport(null); setRFQFile(null); setBidFile(null); setUsageLimits({ initiatorChecks: 0, bidderChecks: 0, isSubscribed: false }); setCurrentPage(PAGE.HOME); setErrorMessage(null); };
     useEffect(() => { if (!auth) return; const unsubscribe = onAuthStateChanged(auth, async (user) => { if (user) { setUserId(user.uid); try { const userDoc = await getDoc(doc(db, 'users', user.uid)); const userData = userDoc.exists() ? userDoc.data() : { role: 'USER' }; setCurrentUser({ uid: user.uid, ...userData }); if (userData.role === 'ADMIN') { setCurrentPage(PAGE.ADMIN); } else { setCurrentPage(PAGE.COMPLIANCE_CHECK); } } catch (error) { setCurrentUser({ uid: user.uid, role: 'USER' }); setCurrentPage(PAGE.COMPLIANCE_CHECK); } } else { setUserId(null); setCurrentUser(null); setReportsHistory([]); setReport(null); setRFQFile(null); setBidFile(null); setCurrentPage(PAGE.HOME); } setIsAuthReady(true); }); return () => unsubscribe(); }, []);
     useEffect(() => { if (db && userId) { const docRef = getUsageDocRef(db, userId); const unsubscribe = onSnapshot(docRef, (docSnap) => { if (docSnap.exists()) { setUsageLimits({ bidderChecks: docSnap.data().bidderChecks || 0, isSubscribed: docSnap.data().isSubscribed || false }); } else { const initialData = { initiatorChecks: 0, bidderChecks: 0, isSubscribed: false }; setDoc(docRef, initialData).catch(e => console.error("Error creating usage doc:", e)); setUsageLimits(initialData); } }, (error) => console.error("Error listening to usage limits:", error)); return () => unsubscribe(); } }, [userId]);
@@ -659,8 +680,6 @@ const App = () => {
     useEffect(() => { const loadScript = (src) => { return new Promise((resolve, reject) => { if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; } const script = document.createElement('script'); script.src = src; script.onload = resolve; script.onerror = () => reject(); document.head.appendChild(script); }); }; const loadAllLibraries = async () => { try { if (!window.pdfjsLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"); if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js'; if (!window.mammoth) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth.js/1.4.15/mammoth.browser.min.js"); } catch (e) { console.warn("Doc parsing libs warning:", e); } }; loadAllLibraries(); const params = new URLSearchParams(window.location.search); if (params.get('client_reference_id') || params.get('payment_success')) { window.history.replaceState({}, document.title, "/"); } }, []); 
     const incrementUsage = async () => { if (!db || !userId) return; const docRef = getUsageDocRef(db, userId); try { await runTransaction(db, async (transaction) => { const docSnap = await transaction.get(docRef); const currentData = docSnap.exists() ? docSnap.data() : { bidderChecks: 0, isSubscribed: false }; if (!docSnap.exists()) transaction.set(docRef, currentData); transaction.update(docRef, { bidderChecks: (currentData.bidderChecks || 0) + 1 }); }); } catch (e) { console.error("Usage update failed:", e); } };
 
-
-    // 3. Existing Handle Analyze (for Compliance)
     const handleAnalyze = useCallback(async () => {
         if (currentUser?.role !== 'ADMIN' && !usageLimits.isSubscribed && usageLimits.bidderChecks >= MAX_FREE_AUDITS) { setShowPaywall(true); return; }
         if (!RFQFile || !BidFile) { setErrorMessage("Please upload both documents."); return; }
@@ -670,15 +689,6 @@ const App = () => {
             const rfqContent = await processFile(RFQFile);
             const bidContent = await processFile(BidFile);
             
-            const systemPrompt = {
-                parts: [{
-                    text: `You are the SmartBid Compliance Auditor & Coach.
-                    (TASK: Perform Audit & Coaching as per Schema. Output JSON.)`
-                    // Note: Shortened here for brevity, assumes backend/prompt context is sufficient or preserved.
-                }]
-            };
-
-            // Re-using existing system prompt logic (User provided simplified logic in snippet, ensuring full prompt is passed)
              const fullSystemPrompt = {
                 parts: [{
                     text: `You are the SmartBid Compliance Auditor & Coach.
@@ -724,7 +734,7 @@ const App = () => {
 
             if (jsonText) {
                 const parsed = JSON.parse(jsonText);
-                parsed.reportType = 'COMPLIANCE'; // Tag as Compliance Report
+                parsed.reportType = 'COMPLIANCE'; 
                 setReport(parsed);
                 await incrementUsage();
             } else { throw new Error("AI returned invalid data."); }
@@ -732,8 +742,6 @@ const App = () => {
         } catch (error) { setErrorMessage(`Analysis failed: ${error.message}`); } finally { setLoading(false); }
     }, [RFQFile, BidFile, usageLimits, currentUser]);
 
-
-    // 4. NEW Handle Extract Function (The "Shredder")
     const handleExtract = useCallback(async () => {
         if (currentUser?.role !== 'ADMIN' && !usageLimits.isSubscribed && usageLimits.bidderChecks >= MAX_FREE_AUDITS) { setShowPaywall(true); return; }
         if (!RFQFile) { setErrorMessage("Please upload an RFQ Document."); return; }
@@ -742,7 +750,6 @@ const App = () => {
         try {
             const rfqContent = await processFile(RFQFile);
             
-            // THE SHREDDER PROMPT
             const systemPrompt = {
                 parts: [{
                     text: `You are a Bid Compliance Officer. "Shred" this Tender Document (SOW).
@@ -786,7 +793,7 @@ const App = () => {
 
             if (jsonText) {
                 const parsed = JSON.parse(jsonText);
-                parsed.reportType = 'EXTRACTION'; // Tag as Extraction Report
+                parsed.reportType = 'EXTRACTION'; 
                 setReport(parsed);
                 await incrementUsage();
             } else { throw new Error("AI returned invalid data."); }
@@ -794,7 +801,6 @@ const App = () => {
         } catch (error) { setErrorMessage(`Extraction failed: ${error.message}`); } finally { setLoading(false); }
     }, [RFQFile, usageLimits, currentUser]);
 
-    // ... (generateTestData, saveReport, deleteReport, loadReportFromHistory kept exact) ...
     const generateTestData = useCallback(async () => { const mockRfqContent = `PROJECT TITLE: OFFSHORE PIPELINE MAINT.\nSCOPE: Inspect pipelines.\n1. TECH: REST API required.`; const mockBidContent = `EXECUTIVE SUMMARY: We will do it.\n1. We use GraphQL.`; setRFQFile(new File([mockRfqContent], "MOCK_RFQ.txt", { type: "text/plain" })); setBidFile(new File([mockBidContent], "MOCK_BID.txt", { type: "text/plain" })); setErrorMessage("Mock docs loaded. Click Run Audit."); }, []);
     const saveReport = useCallback(async (role) => { if (!db || !userId || !report) { setErrorMessage("No report to save."); return; } setSaving(true); try { const reportsRef = getReportsCollectionRef(db, userId); await addDoc(reportsRef, { ...report, rfqName: RFQFile?.name || 'Untitled', bidName: BidFile?.name || 'Untitled', timestamp: Date.now(), role: role, ownerId: userId, reportType: report.reportType || 'COMPLIANCE' }); setErrorMessage("Report saved successfully!"); setTimeout(() => setErrorMessage(null), 3000); } catch (error) { setErrorMessage(`Failed to save: ${error.message}.`); } finally { setSaving(false); } }, [db, userId, report, RFQFile, BidFile]);
     const deleteReport = useCallback(async (reportId, rfqName, bidName) => { if (!db || !userId) return; setErrorMessage(`Deleting...`); try { const reportsRef = getReportsCollectionRef(db, userId); await deleteDoc(doc(reportsRef, reportId)); if (report && report.id === reportId) setReport(null); setErrorMessage("Deleted!"); setTimeout(() => setErrorMessage(null), 3000); } catch (error) { setErrorMessage(`Delete failed: ${error.message}`); } }, [db, userId, report]);
@@ -807,7 +813,7 @@ const App = () => {
                 return <AuditPage 
                     title="Bidder: Self-Compliance Check" 
                     handleAnalyze={handleAnalyze} 
-                    handleExtract={handleExtract} // Passed new handler
+                    handleExtract={handleExtract} 
                     usageLimits={usageLimits} setCurrentPage={setCurrentPage} currentUser={currentUser} loading={loading} RFQFile={RFQFile} BidFile={BidFile} setRFQFile={setRFQFile} setBidFile={setBidFile} generateTestData={generateTestData} errorMessage={errorMessage} report={report} saveReport={saveReport} saving={saving} setErrorMessage={setErrorMessage} userId={userId} handleLogout={handleLogout}
                 />;
             case PAGE.ADMIN: return <AdminDashboard setCurrentPage={setCurrentPage} currentUser={currentUser} reportsHistory={reportsHistory} loadReportFromHistory={loadReportFromHistory} handleLogout={handleLogout} />;
