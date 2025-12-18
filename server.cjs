@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 const admin = require('firebase-admin');
+const rateLimit = require('express-rate-limit'); [cite_start]// [cite: 1] NEW: Import Rate Limiter
 
 // --- 1. INITIALIZE FIREBASE ---
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -17,8 +18,30 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '10mb', verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
+// --- 2. SECURITY MIDDLEWARE ---
+
+// A. INCREASE PAYLOAD LIMIT TO 50MB (For Large RFQs)
+// We keep 'verify' to store rawBody needed for Stripe Webhooks
+app.use(express.json({ 
+    limit: '50mb', 
+    verify: (req, res, buf) => { req.rawBody = buf.toString(); } 
+}));
 app.use(cors());
+
+// B. RATE LIMITER (The "Bouncer")
+// Limit repeated requests to public APIs.
+const apiLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 mins)
+	standardHeaders: 'draft-7', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    message: { error: "Too many requests, please try again later." }
+});
+
+// Apply the rate limiting ONLY to the AI analysis route (User Facing)
+// We generally don't limit Webhooks (Stripe) or Portal sessions as strictly.
+app.use('/api/analyze', apiLimiter);
+
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
@@ -28,11 +51,14 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 app.post('/api/analyze', async (req, res) => {
     try {
         const { contents, systemInstruction, generationConfig } = req.body;
+        
+        // Native Node.js fetch (Node 18+)
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents, systemInstruction, generationConfig })
         });
         const data = await response.json();
+        
         if (!response.ok) throw new Error(data.error?.message || 'Google API Error');
         res.json(data);
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -71,6 +97,7 @@ app.post('/api/webhook', async (req, res) => {
     let event;
 
     try {
+        // Use rawBody for signature verification
         event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
     } catch (err) { return res.status(400).send(`Webhook Error: ${err.message}`); }
 
@@ -86,12 +113,11 @@ app.post('/api/webhook', async (req, res) => {
             console.log(`✅ Unlocked & Linked: ${userId} -> ${stripeCustomerId}`);
         }
     }
-    // Handle Cancellation Logic (Optional but good)
+    // Handle Cancellation Logic (Optional)
     if (event.type === 'customer.subscription.deleted') {
         const subscription = event.data.object;
-        // We need to find which user owns this subscription (reverse lookup or store ID in metadata).
-        // For MVP, we trust the Stripe Dashboard or manual check, but ideally, you'd query Firebase 
-        // where stripeCustomerId == subscription.customer and set isSubscribed: false.
+        // Logic to revoke access would go here
+        console.log(`❌ Subscription deleted for customer: ${subscription.customer}`);
     }
 
     res.send();
