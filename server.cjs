@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 const admin = require('firebase-admin');
-const rateLimit = require('express-rate-limit'); [cite_start]// [cite: 1] NEW: Import Rate Limiter
+const rateLimit = require('express-rate-limit'); 
 
 // --- 1. INITIALIZE FIREBASE ---
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
