@@ -139,12 +139,22 @@ const fetchWithRetry = async (url, options, maxRetries = 3) => {
 const getUsageDocRef = (db, userId) => doc(db, `users/${userId}/usage_limits`, 'main_tracker');
 const getReportsCollectionRef = (db, userId) => collection(db, `users/${userId}/compliance_reports`);
 
+// --- FIXED COMPLIANCE CALCULATOR ---
 const getCompliancePercentage = (report) => {
     const findings = report.findings || []; 
-    const totalScore = findings.reduce((sum, item) => sum + (item.complianceScore || 0), 0);
+    const totalScore = findings.reduce((sum, item) => {
+        let score = item.complianceScore || 0;
+        // BUG FIX: Normalize 0-100 scale to 0-1 if AI returns large numbers
+        if (score > 1) {
+            score = score / 100;
+        }
+        return sum + score;
+    }, 0);
+    
     const maxScore = findings.length * 1;
     return maxScore > 0 ? parseFloat(((totalScore / maxScore) * 100).toFixed(1)) : 0;
 };
+// ---------------------------------
 
 const processFile = (file) => {
     return new Promise(async (resolve, reject) => {
