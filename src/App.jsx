@@ -97,7 +97,11 @@ const COMPREHENSIVE_REPORT_SCHEMA = {
             }
         },
         "legalRiskAlerts": { "type": "ARRAY", "items": { "type": "STRING" } },
-        "submissionChecklist": { "type": "ARRAY", "items": { "type": "STRING" } },
+        "submissionChecklist": { 
+            "type": "ARRAY", 
+            "items": { "type": "STRING" },
+            "description": "A list of SPECIFIC document names or appendices requested by the RFQ. (e.g. 'Audited Financials 2024', 'ISO 9001 Certificate', 'Appendix C'). Do NOT include sentences or compliance statuses."
+        },
 
         // --- CORE COMPLIANCE FIELDS ---
         "executiveSummary": { "type": "STRING", "description": "Audit summary." },
@@ -953,8 +957,9 @@ const App = () => {
                     1. GENERATE 'generatedExecutiveSummary'.
                     2. CALCULATE 'persuasionScore', 'toneAnalysis', 'weakWords'.
                     3. DETERMINE 'procurementVerdict' (Winning/Losing factors).
-                    4. SCAN for 'legalRiskAlerts' and 'submissionChecklist'.
-                    5. CLEAN UP TEXT: Fix any OCR/PDF spacing errors.
+                    4. SCAN for 'legalRiskAlerts'.
+                    5. EXTRACT 'submissionChecklist': List ONLY specific document names, forms, or appendices requested in the RFQ (e.g., "Audited Financials", "HSE Manual", "Appendix A"). Do NOT include general requirements or compliance statements.
+                    6. CLEAN UP TEXT: Fix any OCR/PDF spacing errors.
 
                     **TASK 3: Compliance Audit**
                     1. Compare <bid_document> against requirements in <rfq_document>.
