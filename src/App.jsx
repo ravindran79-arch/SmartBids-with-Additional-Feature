@@ -107,7 +107,7 @@ const COMPREHENSIVE_REPORT_SCHEMA = {
                 "type": "OBJECT",
                 "properties": {
                     "requirementFromRFQ": { "type": "STRING", "description": "EXACT TEXT of requirement." },
-                    "complianceScore": { "type": "NUMBER" },
+                    "complianceScore": { "type": "NUMBER", "description": "STRICTLY USE: 1 for COMPLIANT, 0.5 for PARTIAL, 0 for NON-COMPLIANT." },
                     "bidResponseSummary": { "type": "STRING" },
                     "flag": { "type": "STRING", "enum": ["COMPLIANT", "PARTIAL", "NON-COMPLIANT"] },
                     "category": { "type": "STRING", "enum": CATEGORY_ENUM },
@@ -958,8 +958,12 @@ const App = () => {
 
                     **TASK 3: Compliance Audit**
                     1. Compare <bid_document> against requirements in <rfq_document>.
-                    2. Output findings with 'complianceScore', 'flag' (COMPLIANT/PARTIAL/NON-COMPLIANT).
-                    3. If Partial/Non-Compliant, provide 'negotiationStance'.
+                    2. Output findings with 'complianceScore' and 'flag' (COMPLIANT/PARTIAL/NON-COMPLIANT).
+                    3. SCORING RULES:
+                       - COMPLIANT: score 1
+                       - PARTIAL: score 0.5
+                       - NON-COMPLIANT: score 0
+                    4. If Partial/Non-Compliant, provide 'negotiationStance'.
 
                     Output must be valid JSON matching the schema.`
                 }]
