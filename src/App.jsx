@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+// Added missing 'Description' import below
 import { 
     FileUp, Send, Loader2, AlertTriangle, CheckCircle, List, FileText, BarChart2,
     Save, Clock, Zap, ArrowLeft, Users, Briefcase, Layers, UserPlus, LogIn, Tag,
     Shield, User, HardDrive, Phone, Mail, Building, Trash2, Eye, DollarSign, Activity, 
     Printer, Download, MapPin, Calendar, ThumbsUp, ThumbsDown, Gavel, Paperclip, Copy, Award, Lock, CreditCard, Info,
-    Scale, FileCheck, XCircle, Search, UserCheck, HelpCircle, GraduationCap, TrendingUp, Globe, Map, FileDown
+    Scale, FileCheck, XCircle, Search, UserCheck, HelpCircle, GraduationCap, TrendingUp, Globe, Map, FileDown, Description
 } from 'lucide-react'; 
 
 // --- FIREBASE IMPORTS ---
