@@ -1,16 +1,17 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { 
     FileUp, Send, Loader2, AlertTriangle, CheckCircle, List, FileText, BarChart2,
     Save, Clock, Zap, ArrowLeft, Users, Briefcase, Layers, UserPlus, LogIn, Tag,
     Shield, User, HardDrive, Phone, Mail, Building, Trash2, Eye, DollarSign, Activity, 
-    Printer, Download, MapPin, Calendar, ThumbsUp, ThumbsDown, Gavel, Paperclip, Copy, Award, Lock, CreditCard, Info
+    Printer, Download, MapPin, Calendar, ThumbsUp, ThumbsDown, Gavel, Paperclip, Copy, Award, Lock, CreditCard, Info,
+    Scale, FileCheck, XCircle, Search, LogOut, Flame, Target
 } from 'lucide-react'; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { 
     getAuth, onAuthStateChanged, createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, signOut 
+    signInWithEmailAndPassword, signOut, sendEmailVerification 
 } from 'firebase/auth';
 import { 
     getFirestore, collection, addDoc, onSnapshot, query, doc, setDoc, 
@@ -44,7 +45,7 @@ const PAGE = {
     HISTORY: 'HISTORY' 
 };
 
-// --- JSON SCHEMA ---
+// --- JSON SCHEMA (UNCHANGED HARD LIMITS) ---
 const COMPREHENSIVE_REPORT_SCHEMA = {
     type: "OBJECT",
     description: "The complete compliance audit report with market intelligence and bid coaching data.",
@@ -148,17 +149,12 @@ const getCompliancePercentage = (report) => {
     const findings = report.findings || []; 
     const totalScore = findings.reduce((sum, item) => {
         let score = item.complianceScore || 0;
-        // BUG FIX: Normalize 0-100 scale to 0-1 if AI returns large numbers
-        if (score > 1) {
-            score = score / 100;
-        }
+        if (score > 1) { score = score / 100; }
         return sum + score;
     }, 0);
-    
     const maxScore = findings.length * 1;
     return maxScore > 0 ? parseFloat(((totalScore / maxScore) * 100).toFixed(1)) : 0;
 };
-// ---------------------------------
 
 const processFile = (file) => {
     return new Promise(async (resolve, reject) => {
@@ -244,10 +240,7 @@ const FormInput = ({ label, name, value, onChange, type, placeholder, id }) => (
 
 const PaywallModal = ({ show, onClose, userId }) => {
     if (!show) return null;
-    
-    // ✅ STRIPE LINK
     const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/cNi00i4JHdOmdTT8VJafS00"; 
-
     const handleUpgrade = () => {
         if (userId) {
             window.location.href = `${STRIPE_PAYMENT_LINK}?client_reference_id=${userId}`;
@@ -255,7 +248,6 @@ const PaywallModal = ({ show, onClose, userId }) => {
             alert("Error: User ID missing. Please log in again.");
         }
     };
-
     return (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 no-print">
             <div className="bg-slate-800 rounded-2xl shadow-2xl border border-amber-500/50 max-w-md w-full p-8 text-center relative">
@@ -285,43 +277,6 @@ const PaywallModal = ({ show, onClose, userId }) => {
         </div>
     );
 };
-
-const DetailItem = ({ icon: Icon, label, value }) => (
-    <div className='flex items-center text-sm text-slate-300'>
-        {Icon && <Icon className="w-4 h-4 mr-2 text-blue-400 flex-shrink-0"/>}
-        <span className="text-slate-500 mr-2 flex-shrink-0">{label}:</span>
-        <span className="font-medium truncate min-w-0" title={value}>{value}</span>
-    </div>
-);
-
-const UserCard = ({ user }) => (
-  <div className="p-4 bg-slate-900 rounded-xl border border-slate-700 shadow-md">
-    <div className="flex justify-between items-center border-b border-slate-700 pb-2 mb-2">
-      <p className="text-xl font-bold text-white flex items-center"><User className="w-5 h-5 mr-2 text-amber-400" />{user.name}</p>
-      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${user.role === 'ADMIN' ? 'bg-red-500 text-white' : 'bg-green-500 text-slate-900'}`}>{user.role}</span>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mt-4">
-      <DetailItem icon={Briefcase} label="Designation" value={user.designation} />
-      <DetailItem icon={Building} label="Company" value={user.company} />
-      <DetailItem icon={Mail} label="Email" value={user.email} />
-      <DetailItem icon={Phone} label="Contact" value={user.phone || 'N/A'} />
-    </div>
-  </div>
-);
-
-const StatCard = ({ icon, label, value }) => (
-  <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 flex items-center space-x-4">
-    <div className="flex-shrink-0">{icon}</div>
-    <div><div className="text-3xl font-extrabold text-white">{value}</div><div className="text-sm text-slate-400">{label}</div></div>
-  </div>
-);
-
-const MetricPill = ({ label, count, color }) => (
-    <div className="p-2 rounded-lg bg-slate-800 border border-slate-700">
-        <div className={`text-xl font-bold ${color}`}>{count}</div>
-        <div className="text-slate-400 text-xs mt-1">{label}</div>
-    </div>
-);
 
 const FileUploader = ({ title, file, setFile, color, requiredText }) => (
     <div className={`p-6 border-2 border-dashed border-${color}-600/50 rounded-2xl bg-slate-900/50 space-y-3 no-print`}>
@@ -509,8 +464,7 @@ const ReportHistory = ({ reportsHistory, loadReportFromHistory, isAuthReady, use
     );
 };
 
-// --- PAGE COMPONENTS (AuthPage First) ---
-
+// --- AUTH PAGE (Auto-Admin Logic Added) ---
 const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) => {
     const [regForm, setRegForm] = useState({ name: '', designation: '', company: '', email: '', phone: '', password: '' });
     const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -525,17 +479,20 @@ const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) =
         setIsSubmitting(true);
         try {
             const userCred = await createUserWithEmailAndPassword(auth, regForm.email, regForm.password);
+            
+            // --- AUTO-DETECT SYSTEM ADMIN ---
+            const isAdmin = regForm.email.toLowerCase() === 'ravindran.79@gmail.com';
+
             await setDoc(doc(db, 'users', userCred.user.uid), {
                 name: regForm.name,
-                designation: regForm.designation,
-                company: regForm.company,
+                designation: isAdmin ? 'System Administrator' : regForm.designation,
+                company: isAdmin ? 'Ronav-AI' : regForm.company,
                 email: regForm.email,
                 phone: regForm.phone,
-                role: 'USER',
+                role: isAdmin ? 'ADMIN' : 'USER',
                 createdAt: Date.now()
             });
             
-            // FIX: Sign Out immediately to prevent auto-redirect
             await signOut(auth);
             
             setLoginForm({ email: regForm.email, password: regForm.password });
@@ -554,7 +511,6 @@ const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) =
         setIsSubmitting(true);
         try {
             await signInWithEmailAndPassword(auth, loginForm.email, loginForm.password);
-            // No direct navigation here; App effect handles role-based redirect
         } catch (err) {
             console.error('Login error', err);
             setErrorMessage(err.message || 'Login failed.');
@@ -584,30 +540,6 @@ const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) =
                             {isSubmitting ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <UserPlus className="h-5 w-5 mr-2" />}
                             {isSubmitting ? 'Registering...' : 'Register'}
                         </button>
-
-                        {/* --- LEGAL DISCLAIMER --- */}
-                        <div className="mt-4 text-[10px] text-slate-500 text-center leading-tight">
-                            By registering, you agree to our 
-                            <a 
-                                href="https://img1.wsimg.com/blobby/go/203a0c5d-2209-4c66-b0c4-991df2124bd3/downloads/0c0d3149-68a2-42ef-abeb-f0c82323cfef/TERMS%20OF%20SERVICE.pdf?ver=1764379110939" 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="text-blue-400 hover:underline mx-1"
-                            >
-                                Terms of Service
-                            </a>
-                            and 
-                            <a 
-                                href="https://img1.wsimg.com/blobby/go/203a0c5d-2209-4c66-b0c4-991df2124bd3/downloads/1a00cf64-6cab-4f3d-89c1-f370755ca03c/PRIVACY%20POLICY.pdf?ver=1764379110939" 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="text-blue-400 hover:underline mx-1"
-                            >
-                                Privacy Policy
-                            </a>.
-                        </div>
-                        {/* -------------------------- */}
-
                     </form>
                 </div>
 
@@ -635,75 +567,213 @@ const AuthPage = ({ setCurrentPage, setErrorMessage, errorMessage, db, auth }) =
     );
 };
 
+// --- UPDATED ADMIN DASHBOARD (SALES GOD VIEW + CSV EXPORT) ---
 const AdminDashboard = ({ setCurrentPage, currentUser, reportsHistory, loadReportFromHistory, handleLogout }) => {
   const [userList, setUserList] = useState([]);
+  const [activeTab, setActiveTab] = useState('MARKET_GOD_VIEW'); // 'MARKET_GOD_VIEW' or 'USER_GOD_VIEW'
+
   useEffect(() => {
-    getDocs(collection(getFirestore(), 'users')).then(snap => setUserList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    getDocs(collection(getFirestore(), 'users')).then(snap => {
+        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setUserList(users);
+    });
   }, []);
-  const exportToCSV = (data, filename) => {
-    const csvContent = "data:text/csv;charset=utf-8," + Object.keys(data[0]).join(",") + "\n" + data.map(e => Object.values(e).map(v => `"${v}"`).join(",")).join("\n");
-    const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = filename; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+
+  const getUserDetails = (uid) => {
+      const user = userList.find(u => u.id === uid);
+      return user ? user : { name: 'Unknown', company: 'Unknown', email: 'N/A' };
   };
-  const handleVendorExport = () => {
-      const cleanVendorData = userList.map(u => ({ "Full Name": u.name, "Designation": u.designation, "Company": u.company, "Email": u.email, "Contact Number": u.phone, "Role": u.role }));
-      exportToCSV(cleanVendorData, 'vendor_registry.csv');
+
+  const getProjectCountForUser = (uid) => reportsHistory.filter(r => r.ownerId === uid).length;
+
+  const exportToCSV = (type) => {
+    let headers = [];
+    let rows = [];
+    let filename = "";
+
+    if (type === 'MARKET') {
+        filename = "sales_market_intel.csv";
+        headers = ["Date", "Sales User", "Company", "Project Title", "Industry", "Location", "Value", "Deal Temp", "Persona", "Score"];
+        rows = reportsHistory.map(rpt => {
+            const user = getUserDetails(rpt.ownerId);
+            return [
+                new Date(rpt.timestamp).toLocaleDateString(),
+                `"${user.name}"`,
+                `"${user.company}"`,
+                `"${rpt.projectTitle || rpt.rfqName}"`,
+                `"${rpt.industryTag || 'N/A'}"`,
+                `"${rpt.projectLocation || 'N/A'}"`,
+                `"${rpt.grandTotalValue || '0'}"`,
+                `"${rpt.leadTemperature || 'N/A'}"`,
+                `"${rpt.buyingPersona || 'N/A'}"`,
+                `${getCompliancePercentage(rpt)}%`
+            ];
+        });
+    } else {
+        filename = "sales_user_registry.csv";
+        headers = ["Name", "Designation", "Company", "Email", "Phone", "Role", "Join Date", "Projects Audited"];
+        rows = userList.map(u => [
+            `"${u.name}"`,
+            `"${u.designation || 'N/A'}"`,
+            `"${u.company}"`,
+            `"${u.email}"`,
+            `"${u.phone || 'N/A'}"`,
+            `"${u.role}"`,
+            new Date(u.createdAt).toLocaleDateString(),
+            getProjectCountForUser(u.id)
+        ]);
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", filename);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
-  const handleMarketExport = () => {
-      const cleanMarketData = reportsHistory.map(r => ({
-          ID: r.id, Project: r.projectTitle || r.rfqName, "Scope of Work": r.rfqScopeSummary || 'N/A', Vendor: userList.find(u => u.id === r.ownerId)?.name, Industry: r.industryTag, Value: r.grandTotalValue, Location: r.projectLocation, Duration: r.contractDuration, "Tech Stack": r.techKeywords, Regulations: r.requiredCertifications, "Risk Identified": r.primaryRisk, "Buying Persona": r.buyingPersona, "Complexity Score": r.complexityScore, "Trap Count": r.trapCount, "Lead Temperature": r.leadTemperature, Score: getCompliancePercentage(r) + '%'
-      }));
-      exportToCSV(cleanMarketData, 'market_data.csv');
-  };
+
   return (
-    <div id="admin-print-area" className="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 space-y-8">
-      <div className="flex justify-between items-center border-b border-slate-700 pb-4">
-        <h2 className="text-3xl font-bold text-white flex items-center"><Shield className="w-8 h-8 mr-3 text-red-400" /> Admin Market Intel</h2>
-        <div className="flex space-x-3 no-print">
-            <button onClick={() => window.print()} className="text-sm text-slate-400 hover:text-white bg-slate-700 px-3 py-2 rounded-lg"><Printer className="w-4 h-4 mr-2" /> Print</button>
-            <button onClick={handleLogout} className="text-sm text-slate-400 hover:text-amber-500 flex items-center"><ArrowLeft className="w-4 h-4 mr-1" /> Logout</button>
+    <div id="admin-print-area" className="bg-slate-900 min-h-screen p-8 rounded-2xl shadow-2xl border border-slate-700 space-y-8">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-center border-b border-slate-700 pb-6">
+        <div>
+            <h2 className="text-3xl font-extrabold text-white flex items-center">
+                <Shield className="w-8 h-8 mr-3 text-red-500" /> SmartBids God View
+            </h2>
+            <p className="text-slate-400 text-sm mt-1">Logged in as: <span className="text-white font-bold">{currentUser?.name}</span> (System Administrator)</p>
+        </div>
+        <div className="flex space-x-3 mt-4 md:mt-0 no-print">
+            <button onClick={() => setActiveTab('MARKET_GOD_VIEW')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center ${activeTab === 'MARKET_GOD_VIEW' ? 'bg-amber-600 text-slate-900' : 'bg-slate-800 text-slate-400'}`}>
+                <Target className="w-4 h-4 mr-2"/> Project God View
+            </button>
+            <button onClick={() => setActiveTab('USER_GOD_VIEW')} className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center ${activeTab === 'USER_GOD_VIEW' ? 'bg-amber-600 text-slate-900' : 'bg-slate-800 text-slate-400'}`}>
+                <Users className="w-4 h-4 mr-2"/> User God View
+            </button>
+            <button onClick={() => window.print()} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm flex items-center ml-2">
+                <Printer className="w-4 h-4 mr-2"/> Print
+            </button>
+            <button onClick={handleLogout} className="px-4 py-2 rounded-lg bg-red-900/50 text-red-400 hover:bg-red-900 border border-red-800 text-sm flex items-center ml-2">
+                <LogOut className="w-4 h-4 mr-2"/> Logout
+            </button>
         </div>
       </div>
 
-      <div className="bg-slate-700/30 border border-slate-600 rounded-xl p-4 no-print"><div className="flex items-center mb-2"><Info className="w-4 h-4 mr-2 text-blue-400"/><h4 className="text-sm font-bold text-white">Metric Definitions (God View)</h4></div><div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-slate-400"><div><span className="text-blue-300 font-bold">Buying Persona:</span><br/>Buyer priority: Cost vs. Innovation.</div><div><span className="text-purple-300 font-bold">Complexity Score:</span><br/>Difficulty based on timeline & scope.</div><div><span className="text-orange-300 font-bold">Trap Count:</span><br/>Count of dangerous clauses.</div><div><span className="text-pink-300 font-bold">Lead Temperature:</span><br/>Win probability based on match.</div></div></div>
-      <div className="pt-4 border-t border-slate-700">
-        <div className="flex justify-between mb-4">
-            <h3 className="text-xl font-bold text-white flex items-center"><Eye className="w-6 h-6 mr-2 text-amber-400" /> Live Market Feed</h3>
-            <button onClick={handleMarketExport} className="text-xs bg-green-700 text-white px-3 py-1 rounded no-print"><Download className="w-3 h-3 mr-1"/> CSV</button>
-        </div>
-        <div className="space-y-4">{reportsHistory.slice(0, 15).map(item => (
-            <div key={item.id} className="p-4 bg-slate-900/50 rounded-xl border border-slate-700 cursor-default hover:bg-slate-900">
-                <div className="flex justify-between mb-2">
-                    <div><h4 className="text-lg font-bold text-white">{item.projectTitle || item.rfqName} <span className="text-xs font-normal text-slate-500 ml-2">{item.industryTag === undefined ? '(LEGACY DATA)' : ''}</span></h4><p className="text-sm text-slate-400"><MapPin className="w-3 h-3 inline"/> {item.projectLocation || 'N/A'} • <Calendar className="w-3 h-3 inline"/> {item.contractDuration || 'N/A'}</p></div>
-                    <div className="text-right"><div className="text-xl font-bold text-green-400">{getCompliancePercentage(item)}%</div><span className="text-slate-500 text-xs">{new Date(item.timestamp).toLocaleDateString()}</span></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                    <p className="text-xs text-green-400 font-bold"><DollarSign className="w-3 h-3 inline"/> {item.grandTotalValue || 'N/A'}</p>
-                    <p className="text-xs text-red-400 font-bold"><Activity className="w-3 h-3 inline"/> {item.primaryRisk || 'N/A'}</p>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-700/50">
-                    <div><p className="text-xs font-bold text-blue-300">{item.buyingPersona || 'N/A'}</p><p className="text-[10px] text-slate-500">Buyer Priority</p></div>
-                    <div><p className="text-xs font-bold text-purple-300">{item.complexityScore || 'N/A'}</p><p className="text-[10px] text-slate-500">Complexity</p></div>
-                    <div><p className="text-xs font-bold text-orange-300">{item.trapCount || 'N/A'}</p><p className="text-[10px] text-slate-500">Risk Traps</p></div>
-                    <div><p className="text-xs font-bold text-pink-300">{item.leadTemperature || 'N/A'}</p><p className="text-[10px] text-slate-500">Win Prob.</p></div>
-                </div>
+      {/* --- VIEW 1: SALES MARKET INTEL --- */}
+      {activeTab === 'MARKET_GOD_VIEW' && (
+          <div className="animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-xl font-bold text-amber-400 flex items-center"><BarChart2 className="w-5 h-5 mr-2"/> Sales Intelligence & Market Data</h3>
+                 <button onClick={() => exportToCSV('MARKET')} className="no-print text-xs font-bold bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded flex items-center">
+                    <Download className="w-3 h-3 mr-2"/> Export CSV
+                 </button>
             </div>
-        ))}</div>
-      </div>
-      <div className="pt-4 border-t border-slate-700">
-         <div className="flex justify-between mb-4"><h3 className="text-xl font-bold text-white"><Users className="w-5 h-5 mr-2 text-blue-400" /> Vendor Registry</h3><button onClick={handleVendorExport} className="text-xs bg-blue-700 text-white px-3 py-1 rounded no-print"><Download className="w-3 h-3 mr-1"/> CSV</button></div>
-         <div className="max-h-64 overflow-y-auto bg-slate-900 rounded-xl border border-slate-700">
-            <table className="w-full text-left text-sm text-slate-400">
-                <thead className="bg-slate-800 text-slate-200 uppercase font-bold sticky top-0 z-10">
-                    <tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Designation</th><th className="px-4 py-3">Company</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Phone</th><th className="px-4 py-3 text-right">Role</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">{userList.map((user, i) => (
-                    <tr key={i} className="hover:bg-slate-800/50 transition">
-                        <td className="px-4 py-3 font-medium text-white">{user.name}</td><td className="px-4 py-3">{user.designation}</td><td className="px-4 py-3">{user.company}</td><td className="px-4 py-3">{user.email}</td><td className="px-4 py-3">{user.phone || 'N/A'}</td><td className="px-4 py-3 text-right"><span className={`px-2 py-1 rounded text-xs font-bold ${user.role === 'ADMIN' ? 'bg-red-900 text-red-200' : 'bg-green-900 text-green-200'}`}>{user.role}</span></td>
-                    </tr>
-                ))}</tbody>
-            </table>
-         </div>
-      </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-800/50 shadow-xl">
+                <table className="w-full text-left text-sm text-slate-400">
+                    <thead className="bg-slate-900 text-slate-200 uppercase font-bold text-xs">
+                        <tr>
+                            <th className="px-6 py-4">Date</th>
+                            <th className="px-6 py-4">Sales User</th>
+                            <th className="px-6 py-4">Project / Industry</th>
+                            <th className="px-6 py-4">Deal Metrics</th>
+                            <th className="px-6 py-4">Bid Value</th>
+                            <th className="px-6 py-4 text-center">Fit Score</th>
+                            <th className="px-6 py-4 text-center no-print">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                        {reportsHistory.map((rpt) => {
+                            const user = getUserDetails(rpt.ownerId);
+                            const tempColor = rpt.leadTemperature === 'HOT LEAD' ? 'text-red-400' : rpt.leadTemperature === 'WARM LEAD' ? 'text-amber-400' : 'text-blue-400';
+                            return (
+                                <tr key={rpt.id} className="hover:bg-slate-800 transition">
+                                    <td className="px-6 py-4 whitespace-nowrap">{new Date(rpt.timestamp).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="font-bold text-white">{user.name}</div>
+                                        <div className="text-xs text-amber-500">{user.company}</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-white font-medium">{rpt.projectTitle || rpt.rfqName}</div>
+                                        <div className="text-xs text-slate-500 mt-1 flex items-center"><Tag className="w-3 h-3 mr-1"/>{rpt.industryTag || "General"}</div>
+                                        <div className="text-xs text-slate-500"><MapPin className="w-3 h-3 inline mr-1"/>{rpt.projectLocation || "Global"}</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className={`text-xs font-bold ${tempColor} mb-1`}>{rpt.leadTemperature || "UNKNOWN"}</div>
+                                        <div className="text-xs text-slate-300">Persona: {rpt.buyingPersona || "N/A"}</div>
+                                        <div className="text-xs text-slate-500">Traps: {rpt.trapCount || "0"}</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-white font-mono">{rpt.grandTotalValue || "N/A"}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className={`inline-block px-3 py-1 rounded-full font-bold text-xs ${getCompliancePercentage(rpt) > 80 ? 'bg-green-900 text-green-300' : 'bg-amber-900 text-amber-300'}`}>
+                                            {getCompliancePercentage(rpt)}%
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center no-print">
+                                        <button onClick={() => loadReportFromHistory(rpt)} className="text-amber-400 hover:text-amber-300 font-bold text-xs border border-amber-500/30 px-3 py-1 rounded bg-amber-900/20">VIEW</button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+                {reportsHistory.length === 0 && <div className="p-8 text-center text-slate-500 italic">No market data found.</div>}
+            </div>
+          </div>
+      )}
+
+      {/* --- VIEW 2: USER GOD VIEW --- */}
+      {activeTab === 'USER_GOD_VIEW' && (
+          <div className="animate-in fade-in zoom-in duration-300">
+             <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-xl font-bold text-green-400 flex items-center"><Briefcase className="w-5 h-5 mr-2"/> User Registry</h3>
+                 <button onClick={() => exportToCSV('USERS')} className="no-print text-xs font-bold bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded flex items-center">
+                    <Download className="w-3 h-3 mr-2"/> Export CSV
+                 </button>
+            </div>
+             <div className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-800/50 shadow-xl">
+                <table className="w-full text-left text-sm text-slate-400">
+                    <thead className="bg-slate-900 text-slate-200 uppercase font-bold text-xs">
+                        <tr>
+                            <th className="px-6 py-4">Name / Designation</th>
+                            <th className="px-6 py-4">Company</th>
+                            <th className="px-6 py-4">Contact Details</th>
+                            <th className="px-6 py-4">Role</th>
+                            <th className="px-6 py-4">Projects Audited</th>
+                            <th className="px-6 py-4">Joined Date</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                        {userList.map((u) => (
+                            <tr key={u.id} className="hover:bg-slate-800 transition">
+                                <td className="px-6 py-4">
+                                    <div className="font-bold text-white text-base">{u.name}</div>
+                                    <div className="text-xs text-slate-500 uppercase tracking-wider">{u.designation || "N/A"}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className="text-white font-medium bg-slate-700 px-2 py-1 rounded text-xs">{u.company}</span>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center text-slate-300"><Mail className="w-3 h-3 mr-2 text-slate-500"/>{u.email}</div>
+                                    <div className="flex items-center text-slate-300 mt-1"><Phone className="w-3 h-3 mr-2 text-slate-500"/>{u.phone || "N/A"}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'ADMIN' ? 'bg-red-900 text-red-300 border border-red-700' : 'bg-green-900 text-green-300 border border-green-700'}`}>
+                                        {u.role}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="text-white font-bold">{getProjectCountForUser(u.id)} Projects</div>
+                                </td>
+                                <td className="px-6 py-4 text-xs font-mono text-slate-500">
+                                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+             </div>
+          </div>
+      )}
+
     </div>
   );
 };
@@ -768,7 +838,7 @@ const AuditPage = ({ title, handleAnalyze, usageLimits, setCurrentPage, currentU
     );
 };
 
-// --- APP COMPONENT (DEFINED LAST) ---
+// --- APP COMPONENT ---
 const App = () => {
     const [currentPage, setCurrentPage] = useState(PAGE.HOME);
     const [errorMessage, setErrorMessage] = useState(null);
@@ -786,20 +856,12 @@ const App = () => {
     const [saving, setSaving] = useState(false);
 
     const handleLogout = async () => {
-        // CONSTITUTION: CLEAN SLATE PROTOCOL
         await signOut(auth);
-        setUserId(null);
-        setCurrentUser(null);
-        setReportsHistory([]);
-        setReport(null);
-        setRFQFile(null);
-        setBidFile(null);
+        setUserId(null); setCurrentUser(null); setReportsHistory([]); setReport(null); setRFQFile(null); setBidFile(null);
         setUsageLimits({ initiatorChecks: 0, bidderChecks: 0, isSubscribed: false });
-        setCurrentPage(PAGE.HOME);
-        setErrorMessage(null);
+        setCurrentPage(PAGE.HOME); setErrorMessage(null);
     };
 
-    // --- EFFECT 1: Auth State Listener (Smart Redirect) ---
     useEffect(() => {
         if (!auth) return;
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -809,20 +871,10 @@ const App = () => {
                     const userDoc = await getDoc(doc(db, 'users', user.uid));
                     const userData = userDoc.exists() ? userDoc.data() : { role: 'USER' };
                     setCurrentUser({ uid: user.uid, ...userData });
-                    
-                    // SMART REDIRECT: ADMIN -> ADMIN DASHBOARD, USER -> CHECKER
-                    if (userData.role === 'ADMIN') {
-                        setCurrentPage(PAGE.ADMIN);
-                    } else {
-                        setCurrentPage(PAGE.COMPLIANCE_CHECK);
-                    }
-                } catch (error) {
-                    console.error("Error fetching user profile:", error);
-                    setCurrentUser({ uid: user.uid, role: 'USER' });
-                    setCurrentPage(PAGE.COMPLIANCE_CHECK);
-                }
+                    if (userData.role === 'ADMIN') setCurrentPage(PAGE.ADMIN);
+                    else setCurrentPage(PAGE.COMPLIANCE_CHECK);
+                } catch (error) { setCurrentUser({ uid: user.uid, role: 'USER' }); setCurrentPage(PAGE.COMPLIANCE_CHECK); }
             } else {
-                // FIX: WIPE STATE ON LOGOUT
                 setUserId(null); setCurrentUser(null); setReportsHistory([]); setReport(null); setRFQFile(null); setBidFile(null); setCurrentPage(PAGE.HOME);
             }
             setIsAuthReady(true);
@@ -830,39 +882,27 @@ const App = () => {
         return () => unsubscribe();
     }, []);
 
-    // --- EFFECT 2: Usage Limits Listener ---
     useEffect(() => {
         if (db && userId) {
             const docRef = getUsageDocRef(db, userId);
             const unsubscribe = onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    setUsageLimits({ 
-                        bidderChecks: docSnap.data().bidderChecks || 0, 
-                        isSubscribed: docSnap.data().isSubscribed || false 
-                    });
+                    setUsageLimits({ bidderChecks: docSnap.data().bidderChecks || 0, isSubscribed: docSnap.data().isSubscribed || false });
                 } else {
-                    const initialData = { initiatorChecks: 0, bidderChecks: 0, isSubscribed: false };
-                    setDoc(docRef, initialData).catch(e => console.error("Error creating usage doc:", e));
-                    setUsageLimits(initialData);
+                    setDoc(docRef, { initiatorChecks: 0, bidderChecks: 0, isSubscribed: false }).catch(e => console.error(e));
                 }
-            }, (error) => console.error("Error listening to usage limits:", error));
+            });
             return () => unsubscribe();
         }
     }, [userId]);
 
-    // --- EFFECT 3: Report History Listener ---
     useEffect(() => {
         if (!db || !currentUser) return;
         let unsubscribeSnapshot = null;
         let q;
         try {
-            if (currentUser.role === 'ADMIN') {
-                const collectionGroupRef = collectionGroup(db, 'compliance_reports');
-                q = query(collectionGroupRef);
-            } else if (userId) {
-                const reportsRef = getReportsCollectionRef(db, userId);
-                q = query(reportsRef);
-            }
+            if (currentUser.role === 'ADMIN') { q = query(collectionGroup(db, 'compliance_reports')); } 
+            else if (userId) { q = query(getReportsCollectionRef(db, userId)); }
             if (q) {
                 unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
                     const history = [];
@@ -878,15 +918,12 @@ const App = () => {
         return () => unsubscribeSnapshot && unsubscribeSnapshot();
     }, [userId, currentUser]);
 
-    // --- EFFECT 4: Load Libraries (Robust Check) ---
     useEffect(() => {
         const loadScript = (src) => {
             return new Promise((resolve, reject) => {
                 if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
                 const script = document.createElement('script');
-                script.src = src;
-                script.onload = resolve;
-                script.onerror = () => reject();
+                script.src = src; script.onload = resolve; script.onerror = () => reject();
                 document.head.appendChild(script);
             });
         };
@@ -899,12 +936,9 @@ const App = () => {
         };
         loadAllLibraries();
         
-        // FIX: CHECK FOR PAYMENT SUCCESS REDIRECT
         const params = new URLSearchParams(window.location.search);
         if (params.get('client_reference_id') || params.get('payment_success')) {
-             // Clean URL
              window.history.replaceState({}, document.title, "/");
-             // Optional: Could set a success message state here if desired
         }
     }, []); 
 
@@ -921,7 +955,6 @@ const App = () => {
         } catch (e) { console.error("Usage update failed:", e); }
     };
 
-    // --- UPDATED SECURE ANALYZE FUNCTION ---
     const handleAnalyze = useCallback(async (role) => {
         if (currentUser?.role !== 'ADMIN' && !usageLimits.isSubscribed && usageLimits.bidderChecks >= MAX_FREE_AUDITS) {
             setShowPaywall(true);
@@ -932,11 +965,9 @@ const App = () => {
         setLoading(true); setReport(null); setErrorMessage(null);
 
         try {
-            // 2. Extract Text
             const rfqContent = await processFile(RFQFile);
             const bidContent = await processFile(BidFile);
             
-            // 3. SECURE SYSTEM PROMPT (XML TAGGING STRATEGY)
             const systemPrompt = {
                 parts: [{
                     text: `You are the SmartBid Compliance Auditor & Coach.
@@ -974,7 +1005,6 @@ const App = () => {
                 }]
             };
 
-            // 4. SECURE USER QUERY (WRAPPED IN TAGS)
             const userQuery = `
                 <rfq_document>
                 ${rfqContent}
@@ -1018,7 +1048,6 @@ const App = () => {
             setLoading(false); 
         }
     }, [RFQFile, BidFile, usageLimits, currentUser]);
-    // ----------------------------------------
 
     const generateTestData = useCallback(async () => {
         const mockRfqContent = `PROJECT TITLE: OFFSHORE PIPELINE MAINT.\nSCOPE: Inspect pipelines.\n1. TECH: REST API required.`;
@@ -1099,16 +1128,11 @@ const App = () => {
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; border-radius: 3px; }
                 @media print { 
-                    body * { visibility: hidden; } /* Hide everything by default */
-                    
-                    /* Rule 1: If printing Admin Dashboard */
+                    body * { visibility: hidden; } 
                     #admin-print-area, #admin-print-area * { visibility: visible; } 
                     #admin-print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; color: black; } 
-                    
-                    /* Rule 2: If printing User Report (THE MISSING FIX) */
                     #printable-compliance-report, #printable-compliance-report * { visibility: visible; }
                     #printable-compliance-report { position: absolute; left: 0; top: 0; width: 100%; background: white; color: black; }
-                    
                     .no-print { display: none !important; } 
                 }
             `}</style>
