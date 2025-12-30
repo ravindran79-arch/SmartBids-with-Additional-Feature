@@ -37,7 +37,6 @@ const apiLimiter = rateLimit({
 	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     message: { error: "Too many requests, please try again later." }
 });
-
 // Apply the rate limiting ONLY to the AI analysis route (User Facing)
 // We generally don't limit Webhooks (Stripe) or Portal sessions as strictly.
 app.use('/api/analyze', apiLimiter);
@@ -90,7 +89,7 @@ app.post('/api/create-portal-session', async (req, res) => {
     }
 });
 
-// --- WEBHOOK ROUTE (UPDATED) ---
+// --- WEBHOOK ROUTE (UPDATED WITH CANCELLATION LOGIC) ---
 app.post('/api/webhook', async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const stripe = require('stripe')(STRIPE_SECRET_KEY);
@@ -101,6 +100,7 @@ app.post('/api/webhook', async (req, res) => {
         event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
     } catch (err) { return res.status(400).send(`Webhook Error: ${err.message}`); }
 
+    // 1. HANDLE NEW SUBSCRIPTION (Pro Mode ON)
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const userId = session.client_reference_id;
@@ -113,11 +113,33 @@ app.post('/api/webhook', async (req, res) => {
             console.log(`✅ Unlocked & Linked: ${userId} -> ${stripeCustomerId}`);
         }
     }
-    // Handle Cancellation Logic (Optional)
+
+    // 2. HANDLE CANCELLATION (Pro Mode OFF)
     if (event.type === 'customer.subscription.deleted') {
         const subscription = event.data.object;
-        // Logic to revoke access would go here
-        console.log(`❌ Subscription deleted for customer: ${subscription.customer}`);
+        const stripeCustomerId = subscription.customer;
+
+        if (admin.apps.length) {
+            try {
+                // Find the user document that has this Stripe Customer ID
+                // We use collectionGroup because 'usage_limits' is a subcollection
+                const snapshot = await admin.firestore().collectionGroup('usage_limits')
+                    .where('stripeCustomerId', '==', stripeCustomerId)
+                    .get();
+
+                if (snapshot.empty) {
+                    console.log(`⚠️ Refund processed, but no matching user found for Stripe ID: ${stripeCustomerId}`);
+                } else {
+                    snapshot.forEach(async (doc) => {
+                        // FORCE DOWNGRADE
+                        await doc.ref.update({ isSubscribed: false });
+                        console.log(`❌ DOWNGRADE SUCCESS: User (Doc ID: ${doc.id}) subscription cancelled.`);
+                    });
+                }
+            } catch (err) {
+                console.error("Error processing cancellation:", err);
+            }
+        }
     }
 
     res.send();
